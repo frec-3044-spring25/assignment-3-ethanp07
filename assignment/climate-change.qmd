@@ -151,6 +151,8 @@ Use a search engine (e.g., Google) or a chat LLM to find out how to calculate a 
 
 **Answer 6:**
 
+I used chatGPT to learn how to caluculate how to calculate a rolling average. It recommends to use the zoo package which has the rollmean() function in it. I did not have to change the code much for it to work in my answer. 
+
 **Question 7:**
 
 - What is the meaning of "5-year average" vs. "annual average"?
@@ -158,17 +160,62 @@ Use a search engine (e.g., Google) or a chat LLM to find out how to calculate a 
 
 **Answer 7:**
 
+```{r}
+library(zoo)
+
+# Define rolling window sizes
+window_5 <- 5
+window_10 <- 10
+window_20 <- 20
+
+# Compute rolling means (moving averages)
+temperature_data <- temperature_data %>%
+  mutate(
+    Rolling_5yr = rollmean(No_Smoothing, k = window_5, fill = NA, align = "right"),
+    Rolling_10yr = rollmean(No_Smoothing, k = window_10, fill = NA, align = "right"),
+    Rolling_20yr = rollmean(No_Smoothing, k = window_20, fill = NA, align = "right")
+  )
+
+# Display the first few rows
+head(temperature_data)
+```
+
+The annual average represents the temperature anomaly for just a single year while a 5-year running average smooths these fluctuations by averaging the last 5 years. The annual average captures short-term fluctuations due to nature vairability such as El Niño and volcanic eruptions. A 5-year running average makes long-term climate trends more visible. Longer running averages, such as 10-year and 20-year averages, further reduce noise, helping to highlight sustained warming patterns.
+
 **Question 8:**
 
 Plot the different averages on the *same plot* and describe what differences you see and why.  
 
 **Answer 8:**
 
+```{r}
+# Plot all averages on the same graph
+ggplot(temperature_data, aes(x = Year)) +
+  geom_line(aes(y = No_Smoothing, color = "Annual Mean"), alpha = 0.5) +
+  geom_line(aes(y = Rolling_5yr, color = "5-Year Average"), size = 1) +
+  geom_line(aes(y = Rolling_10yr, color = "10-Year Average"), size = 1.2) +
+  geom_line(aes(y = Rolling_20yr, color = "20-Year Average"), size = 1.5) +
+  labs(title = "Global Temperature Anomalies with Running Averages",
+       x = "Year",
+       y = "Temperature Anomaly (°C)",
+       color = "Legend",
+       caption = "Data Source: NASA GISS") +
+  scale_color_manual(values = c("Annual Mean" = "gray", 
+                                "5-Year Average" = "blue", 
+                                "10-Year Average" = "green", 
+                                "20-Year Average" = "red")) +
+  theme_minimal()
+```
+
+The plot shows that annual temperature anomalies (gray) fluctuate significantly, making it hard to see long-term trends. The 5-year average (blue) smooths some variations but still follows short-term fluctuations, while the 10-year (green) and 20-year (red) averages provide a clearer view of long-term warming. The 20-year average is the smoothest, revealing a consistent upward trend in global temperatures since the mid-20th century. Overall, all running averages confirm a significant long-term warming pattern despite short-term variability.
+
 **Question 9:**
 
 By examining the data here, what evidence do you find or not find for such a pause? 
 
 **Answer 9:**
+
+By examining the data, there is no clear evidence of a significant "pause" in global warming. While the annual temperature anomalies (gray) show short-term fluctuations, the 5-year (blue), 10-year (green), and 20-year (red) running averages reveal a consistent upward trend, particularly after the mid-20th century. Although some periods (e.g., early 2000s) may exhibit slower warming rates, the longer-term trends do not indicate a sustained pause. Instead, the overall pattern supports continued global warming, with temperature anomalies reaching record highs in recent years.
 
 ## Longer term trends in CO2 Records
 
@@ -210,10 +257,70 @@ Your answer to Question 10 is going to be a mix of code chunks and text that you
 
 **Answer 10:**
 
-```{r}
+The data set provides CO2 concentrations from up to 400,000 years ago which allows us to study long term climate patterns. It captures natural fluctuations atmospheric CO₂ over prehistoric times, long before human industrial activity. In contrast, the Mauna Loa dataset records modern CO₂ levels from the 1950s to today, offering precise measurements of how atmospheric CO₂ has changed in recent decades. Both datasets measure CO₂ concentration in parts per million (ppm), making it possible to directly compare historical and modern levels to understand long-term trends and recent human impacts.
 
+
+```{r}
+library(readr)
+
+# Read the file, skipping metadata rows
+vostok_data <- read_table("~/Desktop/Environmental Data Science/assignment-3-ethanp07/assignment/vostok.icecore.co2", skip = 20, col_names = c("Depth_m", "Age_ice_yrBP", "Age_air_yrBP", "CO2_ppm"))
+
+# Reverse the order for chronological plotting
+vostok_data <- vostok_data %>% arrange(Age_air_yrBP)
+
+ggplot(vostok_data, aes(x = Age_air_yrBP, y = CO2_ppm)) +
+  geom_line(color = "blue") +
+  labs(title = "Vostok Ice Core CO2 Levels Over Time",
+       x = "Age of Air (years before present)",
+       y = "CO₂ Concentration (ppm)") +
+  theme_minimal()
 
 ```
+
+```{r}
+# --- Load and Process Mauna Loa Data ---
+mauna_loa_data <- read_table(
+  "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_mm_mlo.txt", 
+  skip = 72, 
+  col_names = FALSE
+)
+
+# Rename columns (adjust if needed based on file structure)
+colnames(mauna_loa_data) <- c("Year", "CO2_ppm", "Extra1", "Extra2", "Extra3")
+
+# Keep only relevant columns and convert to "years before present"
+mauna_loa_data <- mauna_loa_data %>%
+  select(Year, CO2_ppm) %>%
+  mutate(Year = as.numeric(Year),
+         # Here we assume "present" is 2025. Adjust if needed.
+         Age_air_yrBP = 2025 - Year) %>%  
+  select(Age_air_yrBP, CO2_ppm)
+
+# For consistency, select the same columns from Vostok data
+vostok_subset <- vostok_data %>% select(Age_air_yrBP, CO2_ppm)
+
+# Combine the historical and modern CO₂ data
+combined_co2 <- bind_rows(vostok_subset, mauna_loa_data)
+
+ggplot() +
+  # Plot Vostok (historical) data in blue
+  geom_line(data = vostok_subset, aes(x = Age_air_yrBP, y = CO2_ppm, color = "Historical (Vostok)"), size = 1) +
+  # Plot Mauna Loa (modern) data in red
+  geom_line(data = mauna_loa_data, aes(x = Age_air_yrBP, y = CO2_ppm, color = "Modern (Mauna Loa)"), size = 1.2) +
+  # Manually set colors
+  scale_color_manual(values = c("Historical (Vostok)" = "blue", "Modern (Mauna Loa)" = "red")) +
+  # Reverse x-axis so that the most recent time (i.e., near 0 years BP) appears on the right
+  scale_x_reverse() +
+  labs(title = "CO₂ Concentration Over Time: Historical vs. Modern Data",
+       x = "Age of Air (years before present)",
+       y = "CO₂ Concentration (ppm)",
+       caption = "Data Sources: Vostok Ice Core & Mauna Loa (NOAA)",
+       color = "Data Source") +
+  theme_minimal()
+```
+ 
+Recent atmospheric CO₂ levels, as shown by the Mauna Loa data (in red), are significantly higher than any levels recorded in the Vostok ice cores (in blue), which reflect natural fluctuations over the past 400,000 years. The sharp increase in modern CO₂ concentrations, now exceeding 400 ppm, is unprecedented, with the historical record never surpassing 300 ppm. This rapid rise is strongly indicative of human activities, particularly fossil fuel combustion, driving significant changes in Earth's atmosphere and contributing to climate change. Over hundreds of thousands of years, the Vostok ice core record shows atmospheric CO₂ concentrations fluctuating but remaining generally below 300 ppm. In contrast, recent Mauna Loa measurements exceed 400 ppm, revealing a sharp and unprecedented rise. This rapid increase highlights the significant impact of modern human activities on atmospheric CO₂ levels.
 
 # Render and committing
 
@@ -223,5 +330,5 @@ Remember to Render your document as HTML and comment+push to GitHub your code an
 
 Include citation of any AI-generated assistance or discussion with classmates (per policy in syllabus). Proper documentation of AI-generated assistance includes the prompt, the source (e.g., ChatGPT), and the significant parts of the response.  Proper documentation of discussion with classmates include listing their names and the components discussed.  
 
-
+I used ChatGPT to help with question 6 and 7 and for some commenting of my code in the assignment
 
